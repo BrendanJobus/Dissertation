@@ -103,6 +103,12 @@ if __name__ == "__main__":
             
             del model_name, model_params, tmp
         #END FOR LOOP
+        
+        # This is the part that takes the largest amount of time
+        # Here we are taking the models and pre-training them  on the 
+        # public dataset
+            
+        # Note that X_train_MNIST and y_train_MNIST ARE the public dataset
         pre_train_result = train_models(parties, 
                                         X_train_MNIST, y_train_MNIST, 
                                         X_test_MNIST, y_test_MNIST,
@@ -121,7 +127,7 @@ if __name__ == "__main__":
     del  X_train_MNIST, y_train_MNIST, X_test_MNIST, y_test_MNIST, \
     X_train_EMNIST, y_train_EMNIST, X_test_EMNIST, y_test_EMNIST, writer_ids_train, writer_ids_test
     
-    
+    # Initialisation of FedMD is where the first training happens, where the knowledge distillation happens
     fedmd = FedMD(parties, 
                   public_dataset = public_dataset,
                   private_data = private_data, 
@@ -134,9 +140,11 @@ if __name__ == "__main__":
                   N_private_training_round = N_private_training_round, 
                   private_training_batchsize = private_training_batchsize)
     
+    # Results after first training
     initialization_result = fedmd.init_result
     pooled_train_result = fedmd.pooled_train_result
     
+    # Second training
     collaboration_performance = fedmd.collaborative_training()
     
     if result_save_dir is not None:

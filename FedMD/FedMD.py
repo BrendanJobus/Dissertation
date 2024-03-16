@@ -14,13 +14,13 @@ class FedMD():
                  N_logits_matching_round, logits_matching_batchsize, 
                  N_private_training_round, private_training_batchsize):
         
-        self.N_parties = len(parties) # Clients?
-        self.public_dataset = public_dataset
-        self.private_data = private_data
-        self.private_test_data = private_test_data
+        self.N_parties = len(parties) # Clients
+        self.public_dataset = public_dataset # The public data that we pre-train on for the knowledge distillation
+        self.private_data = private_data # 
+        self.private_test_data = private_test_data #
         self.N_alignment = N_alignment
         
-        self.N_rounds = N_rounds
+        self.N_rounds = N_rounds # Number of rounds of training post knowledge distillation
         self.N_logits_matching_round = N_logits_matching_round
         self.logits_matching_batchsize = logits_matching_batchsize
         self.N_private_training_round = N_private_training_round
@@ -102,11 +102,12 @@ class FedMD():
             
             print("update logits ... ")
             # update logits
+            # This is where we compute the class scores
             logits = 0
             for d in self.collaborative_parties:
                 d["model_logits"].set_weights(d["model_weights"])
                 logits += d["model_logits"].predict(alignment_data["X"], verbose = 0)
-                
+            # Averageing the class scores
             logits /= self.N_parties
             
             # test performance
