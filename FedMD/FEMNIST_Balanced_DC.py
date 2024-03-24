@@ -3,14 +3,17 @@ import errno
 import argparse
 import sys
 import pickle
+import json
 
 import numpy as np
 from tensorflow.keras.models import load_model
+import keras
+import tensorflow as tf
 
 from data_utils import load_MNIST_data, load_EMNIST_data, generate_bal_private_data,\
 generate_partial_data
-from FedMD import FedMD
-from Neural_Networks import train_models, cnn_2layer_fc_model, cnn_3layer_fc_model
+from FedMDC import FedMDC
+from Neural_Networks_DC import train_models, cnn_2layer_fc_model, cnn_3layer_fc_model, DriftCorrectionModel
 
 
 def parseArg():
@@ -20,7 +23,7 @@ def parseArg():
                         help='the config file for FedMD.'
                        )
 
-    conf_file = os.path.abspath("conf/EMNIST_balance_conf.json")
+    conf_file = os.path.abspath("conf/EMNIST_balance_drift_correction_conf.json")
     
     if len(sys.argv) > 1:
         args = parser.parse_args(sys.argv[1:])
@@ -31,7 +34,7 @@ def parseArg():
 CANDIDATE_MODELS = {"2_layer_CNN": cnn_2layer_fc_model, 
                     "3_layer_CNN": cnn_3layer_fc_model} 
 
-def run_balanced(conf_file):
+def run_balanced_DC(conf_file):
     with open(conf_file, "r") as f:
         conf_dict = eval(f.read())
         
@@ -87,7 +90,9 @@ def run_balanced(conf_file):
                                          class_in_use = private_classes, verbose = True)
     private_test_data = {"X": X_tmp, "y": y_tmp}
     del X_tmp, y_tmp
-    
+
+    #tf.keras.utils.get_custom_objects().clear()
+
     parties = []
     if model_saved_dir is None:
         for i, item in enumerate(model_config):
@@ -108,6 +113,8 @@ def run_balanced(conf_file):
         # public dataset
             
         # Note that X_train_MNIST and y_train_MNIST ARE the public dataset
+            
+        # Training the models on the public data for knowledge distillation
         pre_train_result = train_models(parties, 
                                         X_train_MNIST, y_train_MNIST, 
                                         X_test_MNIST, y_test_MNIST,
@@ -126,45 +133,59 @@ def run_balanced(conf_file):
     del  X_train_MNIST, y_train_MNIST, X_test_MNIST, y_test_MNIST, \
     X_train_EMNIST, y_train_EMNIST, X_test_EMNIST, y_test_EMNIST, writer_ids_train, writer_ids_test
     
-    # Initialisation of FedMD is where the first training happens, where the knowledge distillation happens
-    fedmd = FedMD(parties, 
-                  public_dataset = public_dataset,
-                  private_data = private_data, 
-                  total_private_data = total_private_data,
-                  private_test_data = private_test_data,
-                  N_rounds = N_rounds,
-                  N_alignment = N_alignment, 
-                  N_logits_matching_round = N_logits_matching_round,
-                  logits_matching_batchsize = logits_matching_batchsize, 
-                  N_private_training_round = N_private_training_round, 
-                  private_training_batchsize = private_training_batchsize)
-    
-    # Results after first training
-    initialization_result = fedmd.init_result
-    pooled_train_result = fedmd.pooled_train_result
-    
-    # Second training
-    collaboration_performance = fedmd.collaborative_training()
-    
-    if result_save_dir is not None:
-        save_dir_path = os.path.abspath(result_save_dir)
-        #make dir
-        try:
-            os.makedirs(save_dir_path)
-        except OSError as e:
-            if e.errno != errno.EEXIST:
-                raise    
-    
-    
-    with open(os.path.join(save_dir_path, 'pre_train_result.pkl'), 'wb') as f:
-        pickle.dump(pre_train_result, f, protocol=pickle.HIGHEST_PROTOCOL)
-    with open(os.path.join(save_dir_path, 'init_result.pkl'), 'wb') as f:
-        pickle.dump(initialization_result, f, protocol=pickle.HIGHEST_PROTOCOL)
-    with open(os.path.join(save_dir_path, 'pooled_train_result.pkl'), 'wb') as f:
-        pickle.dump(pooled_train_result, f, protocol=pickle.HIGHEST_PROTOCOL)
-    with open(os.path.join(save_dir_path, 'col_performance.pkl'), 'wb') as f:
-        pickle.dump(collaboration_performance, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+    # Setup the loop here so that we can use the same base models and dataset
+    models_to_test = ["base", "drift_correct"]
+    # Need to clone models in order to supply the same base model to both versions
+
+    # Setting up for the collaborative training, in this call we'll train once on the private data,
+    # then check the upperbounds by training on all of the private data at once
+    fedmd = FedMDC(parties,
+                public_dataset = public_dataset,
+                private_data = private_data, 
+                total_private_data = total_private_data,
+                private_test_data = private_test_data,
+                N_rounds = N_rounds,
+                N_alignment = N_alignment, 
+                N_logits_matching_round = N_logits_matching_round,
+                logits_matching_batchsize = logits_matching_batchsize, 
+                N_private_training_round = N_private_training_round, 
+                private_training_batchsize = private_training_batchsize)
+
+    for model_type in models_to_test:
+        tf.print("Running {} model".format(model_type))
+        
+        # Results after first training
+        initialization_result = fedmd.init_result
+        pooled_train_result = fedmd.pooled_train_result
+        
+        # Second training
+        collaboration_performance = fedmd.collaborative_training(model_type)
+        
+        if result_save_dir is not None:
+            save_dir_path = os.path.abspath(result_save_dir)
+            #make dir
+            try:
+                os.makedirs(save_dir_path)
+            except OSError as e:
+                if e.errno != errno.EEXIST:
+                    raise    
+        
+        
+        with open(os.path.join(save_dir_path, 'pre_train_result.pkl'), 'wb') as f:
+            pickle.dump(pre_train_result, f, protocol=pickle.HIGHEST_PROTOCOL)
+        with open(os.path.join(save_dir_path, 'init_result.pkl'), 'wb') as f:
+            pickle.dump(initialization_result, f, protocol=pickle.HIGHEST_PROTOCOL)
+        with open(os.path.join(save_dir_path, 'pooled_train_result_{}.pkl'.format(model_type)), 'wb') as f:
+            pickle.dump(pooled_train_result, f, protocol=pickle.HIGHEST_PROTOCOL)
+        with open(os.path.join(save_dir_path, 'col_performance_{}.pkl'.format(model_type)), 'wb') as f:
+            pickle.dump(collaboration_performance, f, protocol=pickle.HIGHEST_PROTOCOL)
+        
+        with open(os.path.join(save_dir_path, 'col_performance.txt'), 'a') as f:
+                f.write(json.dumps(collaboration_performance))
+
+        tf.keras.backend.clear_session()
         
 if __name__ == "__main__":
     conf_file =  parseArg()
-    run_balanced(conf_file)
+    run_balanced_DC(conf_file)

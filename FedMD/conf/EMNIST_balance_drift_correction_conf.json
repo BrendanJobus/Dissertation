@@ -29,5 +29,5 @@
     "private_training_batchsize" : 5, 
     "logits_matching_batchsize": 256, 
     "EMNIST_dir": "./dataset/emnist-letters.mat",
-    "result_save_dir": "./result_FEMNIST_balanced/"
+    "result_save_dir": "./result_FEMNIST_balanced_DC/"
 }
