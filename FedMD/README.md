@@ -20,3 +20,7 @@ Preprint on https://arxiv.org/abs/1910.03581.
 ``` 
 ! python FEMNIST_Balanced.py -conf conf/EMNIST_balance_conf.json
 ```
+
+
+In order to run the project on google colab or on python 3.10, the optimizers must be set to keras.optimizers.legacy.Adam and unpack_x_y_sample weight must be gotten from keras.src.engine.data_adapter.unpack_x_y_sample_weight
+

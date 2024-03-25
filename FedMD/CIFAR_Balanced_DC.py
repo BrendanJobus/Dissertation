@@ -162,7 +162,7 @@ if __name__ == "__main__":
     models_to_test = ["base", "drift_correct"]
 
     for model_type in models_to_test:
-        collaboration_performance = fedmd.collaborative_training()
+        collaboration_performance = fedmd.collaborative_training(model_type)
     
         if result_save_dir is not None:
             save_dir_path = os.path.abspath(result_save_dir)
