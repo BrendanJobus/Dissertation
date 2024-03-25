@@ -35,7 +35,7 @@ def load_EMNIST_data(file, verbose = False, standarized = False):
     mat = sio.loadmat(file)
     data = mat["dataset"]
     
-    
+    print(data)
     
     writer_ids_train = data['train'][0,0]['writers'][0,0]
     writer_ids_train = np.squeeze(writer_ids_train)
@@ -211,20 +211,29 @@ def generate_bal_private_data(X, y, N_parties = 10, classes_in_use = range(11),
     
     """
     priv_data = [None] * N_parties
+    # basically the elements that we are going to use as our private data
     combined_idx = np.array([], dtype = np.int16)
+    print(y)
     for cls in classes_in_use:
+        # cls is the private class we are looking at
+        # setting idx to be the x values(or element) where we found y == cls
+        # [0] is just because the output is a nested array with the other elements being non data points
         idx = np.where(y == cls)[0]
+        # Generating a random set of size samples_per_class * parties, selected without replacement so each element can only be chosen once
         idx = np.random.choice(idx, N_samples_per_class * N_parties, 
                                replace = data_overlap)
         combined_idx = np.r_[combined_idx, idx]
-        for i in range(N_parties):           
+        for i in range(N_parties):  
+            # the data is granted to each party simply by the order that it was found, ie, if there are 1000 samples per class, party 0 gets items 0 - 999         
             idx_tmp = idx[i * N_samples_per_class : (i + 1)*N_samples_per_class]
+            # if priv_data doesn't exist, create it
             if priv_data[i] is None:
                 tmp = {}
                 tmp["X"] = X[idx_tmp]
                 tmp["y"] = y[idx_tmp]
                 tmp["idx"] = idx_tmp
                 priv_data[i] = tmp
+            # else concatenate it onto the existing data
             else:
                 priv_data[i]['idx'] = np.r_[priv_data[i]["idx"], idx_tmp]
                 priv_data[i]["X"] = np.vstack([priv_data[i]["X"], X[idx_tmp]])
@@ -263,7 +272,9 @@ def generate_EMNIST_writer_based_data(X, y, writer_info, N_priv_data_min = 30,
     # mask is a boolean array of the same shape as y
     # mask[i] = True if y[i] in classes_in_use
     mask = None
+    # True if the element in y is one of the classes in use
     mask = [y == i for i in classes_in_use]
+    # Make sure that we have some data
     mask = np.any(mask, axis = 0)
     
     df_tmp = None
