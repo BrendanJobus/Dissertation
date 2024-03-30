@@ -33,8 +33,7 @@ def parseArg():
 CANDIDATE_MODELS = {"2_layer_CNN": cnn_2layer_fc_model, 
                     "3_layer_CNN": cnn_3layer_fc_model} 
 
-if __name__ == "__main__":
-    conf_file =  parseArg()
+def run_imbalanced_CIFAR_DC(conf_file):
     with open(conf_file, "r") as f:
         conf_dict = eval(f.read())
         
@@ -210,6 +209,11 @@ if __name__ == "__main__":
 
     models_to_test = ["base", "drift_correct"]
 
+    #Randomly create an id number for this run
+    id = np.random.randint(0, 999999)
+    id = str(id) + '/'
+    result_save_dir = result_save_dir + id
+
     for model_type in models_to_test:
         collaboration_performance = fedmd.collaborative_training(model_type)
         
@@ -237,4 +241,6 @@ if __name__ == "__main__":
 
         tf.keras.backend.clear_session()
     
-        
+if __name__ == "__main__":
+    conf_file = parseArg()
+    run_imbalanced_CIFAR_DC(conf_file)

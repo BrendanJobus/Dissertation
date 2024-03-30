@@ -2,7 +2,7 @@ import os
 import numpy as np
 import tensorflow as tf
 from FEMNIST_Balanced import run_balanced
-from FEMNIST_Balanced_DC import run_balanced_DC
+from FEMNIST_Balanced_DC import run_balanced_EMNIST_DC
 from tensorflow.keras.models import Model
 from Neural_Networks_DC import DriftCorrectionModel
 
@@ -19,7 +19,7 @@ drif_correction_conf_file = os.path.abspath("conf/EMNIST_balance_conf.json")
 for i in range(number_of_tests):
     print("Running Comparison {}".format(i + 1))
     print("\nRunning standard FedMD\n")
-    regular_performance[i] = run_balanced_DC(fedMD_conf_file, base_model)
+    regular_performance[i] = run_balanced_EMNIST_DC(fedMD_conf_file, base_model)
     tf.keras.backend.clear_session()
     print("\nRunning drift corrected FedMD")
     tf.keras.backend.clear_session()

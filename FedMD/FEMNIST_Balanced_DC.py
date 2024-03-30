@@ -34,7 +34,7 @@ def parseArg():
 CANDIDATE_MODELS = {"2_layer_CNN": cnn_2layer_fc_model, 
                     "3_layer_CNN": cnn_3layer_fc_model} 
 
-def run_balanced_DC(conf_file):
+def run_balanced_EMNIST_DC(conf_file):
     with open(conf_file, "r") as f:
         conf_dict = eval(f.read())
         
@@ -152,6 +152,11 @@ def run_balanced_DC(conf_file):
                 N_private_training_round = N_private_training_round, 
                 private_training_batchsize = private_training_batchsize)
 
+    #Randomly create an id number for this run
+    id = np.random.randint(0, 999999)
+    id = str(id) + '/'
+    result_save_dir = result_save_dir + id
+
     for model_type in models_to_test:
         tf.print("Running {} model".format(model_type))
         
@@ -170,8 +175,7 @@ def run_balanced_DC(conf_file):
             except OSError as e:
                 if e.errno != errno.EEXIST:
                     raise    
-        
-        
+                
         with open(os.path.join(save_dir_path, 'pre_train_result.pkl'), 'wb') as f:
             pickle.dump(pre_train_result, f, protocol=pickle.HIGHEST_PROTOCOL)
         with open(os.path.join(save_dir_path, 'init_result.pkl'), 'wb') as f:
@@ -188,4 +192,4 @@ def run_balanced_DC(conf_file):
         
 if __name__ == "__main__":
     conf_file =  parseArg()
-    run_balanced_DC(conf_file)
+    run_balanced_EMNIST_DC(conf_file)
