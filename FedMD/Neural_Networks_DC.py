@@ -48,7 +48,7 @@ def cnn_3layer_fc_model(n_classes,n1 = 128, n2=192, n3=256, dropout_rate = 0.2,i
 
     model_A = DriftCorrectionModel(inputs = x, outputs = y)
 
-    model_A.compile(optimizer=tf.keras.optimizers.Adam(learning_rate = 1e-3), 
+    model_A.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate = 1e-3), 
                         loss = "sparse_categorical_crossentropy",
                         metrics = ["accuracy"])
     return model_A
@@ -83,7 +83,7 @@ def cnn_2layer_fc_model(n_classes, n1 = 128, n2=256, dropout_rate = 0.2, input_s
 
     model_A = DriftCorrectionModel(inputs = x, outputs = y)
 
-    model_A.compile(optimizer=tf.keras.optimizers.Adam(learning_rate = 1e-3), 
+    model_A.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate = 1e-3), 
                         loss = "sparse_categorical_crossentropy",
                         metrics = ["accuracy"])
     
@@ -99,7 +99,7 @@ def remove_last_layer(model, loss = "mean_absolute_error"):
     
     new_model = Model(inputs = model.inputs, outputs = model.layers[-2].output)
     new_model.set_weights(model.get_weights())
-    new_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate = 1e-3), 
+    new_model.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate = 1e-3), 
                       loss = loss)
     
     return new_model
@@ -113,7 +113,6 @@ class DriftCorrectionModel(keras.Model):
         super().__init__(*args, **kwargs)
         self.global_model = 0
         self.hist_i = 0
-        self.weight_mask = 0
         self._fed_dc_alpha_coef = 0
         self._run_drift_correction = False
         self.loss_cp = lambda theta_i : \
@@ -121,14 +120,14 @@ class DriftCorrectionModel(keras.Model):
         self.local_param_check = None
 
     def train_step(self, data):
-        x, y, sample_weight = keras.engine.data_adapter.unpack_x_y_sample_weight(data)
+        x, y, sample_weight = keras.src.engine.data_adapter.unpack_x_y_sample_weight(data)
         # Run forward pass.
         with tf.GradientTape() as tape:
             y_pred = self(x, training=True)
             loss = self.compute_loss(x, y, y_pred, sample_weight)
         # If we're looking to do drift correction, we need to change our loss function to our new objective function
         if self._run_drift_correction:
-            loss = loss + np.sum( [ tf.reduce_sum(tf_var).numpy() for tf_var in self.loss_cp(self.trainable_variables * self.weight_mask) ] )
+            loss = loss + np.sum( [ tf.reduce_sum(tf_var).numpy() for tf_var in self.loss_cp(self.trainable_variables) ] )
 
         self._validate_target_and_loss(y, loss)
         # Run backwards pass
@@ -138,24 +137,19 @@ class DriftCorrectionModel(keras.Model):
     def initiate_drift_correction_variables(self, alpha):
         self._fed_dc_alpha_coef = alpha
         self.hist_i = np.array(self.setting_hist_i, dtype=object)
-        self.weight_mask = np.array(self.setting_weight_mask, dtype=object)
         self._run_drif_correction = True
             
     def set_drift_correction_variables(self, w):
-        self.global_model = np.array(w, dtype=object) * self.weight_mask
+        self.global_model = np.array(w, dtype=object)
 
     @property
     def setting_hist_i(self):
         return [tf.zeros(shape=v.shape, name=v.name) for v in self.trainable_variables]
-    
-    @property
-    def setting_weight_mask(self):
-        return [tf.ones(shape=v.shape, name=v.name) if 'kernel' in v.name else tf.zeros(shape=v.shape, name=v.name) for v in self.trainable_variables]
-    
+        
     def update_drift_correction_variables(self):
         current_model_params = np.array(self.trainable_variables, dtype=object)
         delta_param_curr = np.subtract(current_model_params, self.global_model, dtype=object)
-        self.hist_i = delta_param_curr * self.weight_mask
+        self.hist_i = np.add(self.hist_i, delta_param_curr, dtype=object)
 
 def clone_subclassed_model(model, optimizer):
     clone = None
@@ -165,71 +159,6 @@ def clone_subclassed_model(model, optimizer):
                         loss = "sparse_categorical_crossentropy",
                         metrics = ["accuracy"])
     return clone
-
-# class history(keras.metric.Metric):
-#     def __init__(self, sample, name = 'history', **kwargs):
-#         super(history, self).__init__(name=name, **kwargs)
-#         self.hist = [tf.zeros(shape=v.shape, name=v.name) for v in sample]
-#         self.blank_hist = [tf.zeros(shape=v.shape, name=v.name) for v in sample]
-
-#     def update_state(self, y_true, y_pred, sample_weight=None):
-#         pass
-
-#     def reset_state(self):
-#         self.hist = self.blank_hist.copy()
-
-#     def result(self):
-#         return self.hist
-
-class objective_function:
-    def __init__(self, alpha):
-        self.alpha = alpha
-        self.loss_fn = keras.losses.SparseCategoricalCrossentropy()
-        self.loss_cp = lambda : \
-                        self.alpha/2 * ((self.theta_i - (self.global_model_param - self.hist_i)) * (self.theta_i - (self.global_model_param - self.hist_i)))
-        self.current_model_name = 0
-        self.w = 0
-        self.hist_i = 0
-
-    def update_variables(self, theta_i, w = 0, hist_i = 0):
-        if not w == 0 and hist_i == 0:
-            self.global_consensus = w
-            self.hist_i = hist_i
-        self.theta_i = theta_i
-
-    def update_name(self, name):
-        self.current_model_name = name
-
-    def FedDC_Loss(self, y_true, y_pred):
-        loss = self.loss_fn(y_true, y_pred) + np.sum( [ tf.reduce_sum(tf_var).numpy() for tf_var in self.loss_cp() ] )
-        return loss
-
-    def test_loss(self, y_true, y_pred):
-        loss_fn = keras.losses.SparseCategoricalCrossentropy()
-        print("Custom loss in class ... testing on model_{}".format(self.current_model_name))
-        return loss_fn(y_true, y_pred)
-
-def wrapper(alpha, local_parameter, global_model_param, hist_i):
-    def FedDC_Loss(y_true, y_pred):
-        # Example
-        diff = math_ops.squared_difference(y_pred, y_true) # squared difference
-        loss = keras.mean(diff, axis=-1)
-        loss = loss / 10.0
-
-        # What we need for this function
-        # Normal Loss function
-        # Penalizing term
-        # alpha hyperperamater
-        # maybe the gradient things
-        loss_fn = keras.losses.SparseCategoricalCrossentropy()
-        loss_cp = alpha/2 * ((local_parameter - (global_model_param - hist_i) * (local_parameter - global_model_param - hist_i)))
-        loss = loss_fn + loss_cp
-        return loss
-    
-def test_custom_loss(y_true, y_pred):
-    loss_fn = keras.losses.SparseCategoricalCrossentropy()
-    print("Custom loss")
-    return loss_fn(y_true, y_pred)
 
 ###########################################################################################################################################
 ###########################################################################################################################################

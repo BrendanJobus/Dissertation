@@ -31,7 +31,7 @@ class FedMDC():
         self.init_result = []
 
         # Variables for FedDC integration
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate = 1e-3, clipnorm=10)
+        self.optimizer = tf.keras.optimizers.legacy.Adam(learning_rate = 1e-3, clipnorm=10)
         self.loss_fn = tf.keras.losses.SparseCategoricalCrossentropy
         self.fed_dc_alpha_coef = 1e-2
 
@@ -89,7 +89,7 @@ class FedMDC():
             #model_ub = clone_model(model)
             model_ub = DriftCorrectionModel(inputs = parties[i].input, outputs = parties[i].output)
             model_ub.set_weights(model.get_weights())
-            model_ub.compile(optimizer=tf.keras.optimizers.Adam(learning_rate = 1e-3),
+            model_ub.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate = 1e-3),
                              loss = "sparse_categorical_crossentropy", 
                              metrics = ["accuracy"])
                         
