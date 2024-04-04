@@ -79,10 +79,10 @@ def plot_average_and_variance(base_balanced, base_imbalanced, dc_balanced, dc_im
 
 balanced_base_path = "presentation/result_{}_balanced_DC/col_performance_base.pkl"
 imbalanced_base_path = "presentation/result_{}_imbalanced_DC/col_performance_base.pkl"
-plot_alone(balanced_base_path, imbalanced_base_path, "Base Models")
+# plot_alone(balanced_base_path, imbalanced_base_path, "Base Models")
 
 balanced_dc_path = "presentation/result_{}_balanced_DC/col_performance_drift_correct.pkl"
 imbalanced_dc_path = "presentation/result_{}_imbalanced_DC/col_performance_drift_correct.pkl"
-plot_alone(balanced_dc_path, imbalanced_dc_path, "Drift Corrected Models")
+# plot_alone(balanced_dc_path, imbalanced_dc_path, "Drift Corrected Models")
 
 plot_average_and_variance(balanced_base_path, imbalanced_base_path, balanced_dc_path, imbalanced_dc_path)
